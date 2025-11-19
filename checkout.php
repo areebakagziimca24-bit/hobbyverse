@@ -2,32 +2,40 @@
 session_start();
 include 'db_connect.php';
 
-// ✅ Check if cart is empty
+// ❗ Redirect if cart empty
 if (!isset($_SESSION['cart']) || empty($_SESSION['cart'])) {
     die("<h2 style='text-align:center; color:red;'>❌ Your cart is empty. Please add products first.</h2>");
 }
 
-// ✅ Calculate total & prepare cart items
-$total = 0;
+// Fetch all cart items
 $cart_items = [];
+$total = 0;
+
 foreach ($_SESSION['cart'] as $id => $cartItem) {
     $qty = $cartItem['quantity'] ?? 1;
     $product = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM products WHERE product_id=$id"));
+
     if ($product) {
         $subtotal = $product['price'] * $qty;
         $total += $subtotal;
+
         $cart_items[] = [
             'id' => $id,
             'name' => $product['product_name'],
             'qty' => $qty,
             'price' => $product['price'],
+            'stock' => $product['stock'],
             'subtotal' => $subtotal
         ];
     }
 }
 
-// ✅ Handle checkout form
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// ----------------------------------------------------
+// 🛑 If user submits order → Validate + Check Stock
+// ----------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    // Basic details
     $name = mysqli_real_escape_string($conn, $_POST['name']);
     $email = mysqli_real_escape_string($conn, $_POST['email']);
     $phone = mysqli_real_escape_string($conn, $_POST['phone']);
@@ -35,26 +43,74 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $city = mysqli_real_escape_string($conn, $_POST['city']);
     $payment = mysqli_real_escape_string($conn, $_POST['payment']);
 
-    $sql = "INSERT INTO orders (customer_name, email, phone, address, city, payment_method, total_amount) 
-            VALUES ('$name', '$email', '$phone', '$address', '$city', '$payment', '$total')";
-    if (mysqli_query($conn, $sql)) {
+    // Start transaction
+    mysqli_begin_transaction($conn);
+
+    try {
+        // Check stock for each item safely using SELECT FOR UPDATE
+        foreach ($cart_items as $item) {
+            $pid = $item['id'];
+            $needed_qty = $item['qty'];
+
+            $check_stock = mysqli_query($conn,
+                "SELECT stock FROM products WHERE product_id=$pid FOR UPDATE"
+            );
+            $row = mysqli_fetch_assoc($check_stock);
+            $available = $row['stock'];
+
+            if ($available < $needed_qty) {
+                mysqli_rollback($conn);
+
+                die("<h2 style='text-align:center;color:red;margin:40px;'>❌
+                    Sorry! Only <b>$available</b> left in stock for <b>{$item['name']}</b>.
+                    <br><br><a href='cart.php' style='color:#ff6f91;'>Go back to Cart</a>
+                </h2>");
+            }
+        }
+
+        // Insert order
+        $sql = "INSERT INTO orders (customer_name, email, phone, address, city, payment_method, total_amount)
+                VALUES ('$name', '$email', '$phone', '$address', '$city', '$payment', '$total')";
+
+        mysqli_query($conn, $sql);
         $order_id = mysqli_insert_id($conn);
+
+        // Insert order items + deduct stock
         foreach ($cart_items as $item) {
             $pid = $item['id'];
             $qty = $item['qty'];
             $price = $item['price'];
             $subtotal = $item['subtotal'];
-            mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price, subtotal) 
-                                 VALUES ($order_id, $pid, $qty, $price, $subtotal)");
+
+            // Order items insert
+            mysqli_query($conn,
+                "INSERT INTO order_items (order_id, product_id, quantity, price, subtotal)
+                 VALUES ($order_id, $pid, $qty, $price, $subtotal)"
+            );
+
+            // Reduce stock
+            mysqli_query($conn,
+                "UPDATE products SET stock = stock - $qty WHERE product_id=$pid"
+            );
         }
+
+        // Everything success – commit
+        mysqli_commit($conn);
+
+        // Clear cart
         unset($_SESSION['cart']);
+
+        // Redirect
         header("Location: order_success.php?order_id=$order_id");
         exit;
-    } else {
-        die("❌ Error placing order: " . mysqli_error($conn));
+
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        die("❌ Checkout failed: " . $e->getMessage());
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

@@ -5,28 +5,41 @@ include 'db_connect.php';
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'];
 
-    $sql = "SELECT * FROM users WHERE email='$email'";
+    // ---------------------------------------
+    // ✅ HARDCODED ADMIN LOGIN (NOT from DB)
+    // ---------------------------------------
+    if ($email === "admin@hobbyverse.com" && $password === "admin123") {
+        $_SESSION['user_id'] = 0;
+        $_SESSION['name'] = "Admin";
+        $_SESSION['role'] = "admin";
+
+        header("Location: admin.php");
+        exit;
+    }
+
+    // ---------------------------------------
+    // ✅ NORMAL USER LOGIN (from database)
+    // ---------------------------------------
+    $email_safe = mysqli_real_escape_string($conn, $email);
+    $sql = "SELECT * FROM users WHERE email='$email_safe'";
     $result = mysqli_query($conn, $sql);
 
     if ($result && mysqli_num_rows($result) > 0) {
         $user = mysqli_fetch_assoc($result);
 
         if (password_verify($password, $user['password'])) {
-            // ✅ Set session
+
+            // Save session
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['name'] = $user['name'];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['role'] = "user";
 
-            // Redirect based on role
-            if ($user['role'] === 'admin') {
-                header("Location: admin.php");
-            } else {
-                header("Location: index.php");
-            }
+            header("Location: index.php");
             exit;
+
         } else {
             $error = "❌ Invalid password!";
         }
@@ -52,11 +65,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <div class="box">
     <h2>🔑 Login</h2>
     <?php if($error) echo "<p class='error'>$error</p>"; ?>
+
     <form method="POST">
       <input type="email" name="email" placeholder="Email" required>
       <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Login</button>
     </form>
+
     <p>Don't have an account? <a href="registration.php">Register</a></p>
   </div>
 </body>

@@ -33,6 +33,19 @@ if (isset($_SESSION['cart'][$product_id])) {
     ];
 }
 
+$id = intval($_GET['id']);
+$p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT stock FROM products WHERE product_id=$id"));
+
+if (!$p || $p['stock'] <= 0) {
+    header("Location: products.php?msg=out_of_stock");
+    exit;
+}
+
+if ($_SESSION['cart'][$id]['quantity'] + 1 > $p['stock']) {
+    header("Location: cart.php?msg=not_enough_stock");
+    exit;
+}
+
 // Redirect to cart or stay on same page
 header("Location: cart.php?added=" . urlencode($product['product_name']));
 exit;

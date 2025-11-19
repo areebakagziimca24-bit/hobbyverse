@@ -1,149 +1,206 @@
 <?php
-session_start();
-include 'db_connect.php';
-include 'header.php';
+// -----------------------------------------
+// START SESSION (must be first!)
+if (session_status() === PHP_SESSION_NONE) session_start();
 
-// Initialize cart if empty
+include 'db_connect.php';
+include 'header.php';   // this prints HTML, so logic must be ABOVE this
+// -----------------------------------------
+
+/* -------------------------------
+   INIT CART
+---------------------------------*/
 if (!isset($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
 
-// Remove item
-if (isset($_GET['remove'])) {
-    $id = intval($_GET['remove']);
-    unset($_SESSION['cart'][$id]);
+/* -------------------------------
+   ADD TO CART
+---------------------------------*/
+if (isset($_GET['add'])) {
+    $id = intval($_GET['add']);
+
+    if (!isset($_SESSION['cart'][$id])) {
+        $_SESSION['cart'][$id] = ['quantity' => 1];
+    } else {
+        $_SESSION['cart'][$id]['quantity'] += 1;
+    }
+
     header("Location: cart.php");
     exit;
 }
 
-// Clear all
+/* -------------------------------
+   REMOVE ITEM
+---------------------------------*/
+if (isset($_GET['remove'])) {
+    unset($_SESSION['cart'][intval($_GET['remove'])]);
+    header("Location: cart.php");
+    exit;
+}
+
+/* -------------------------------
+   CLEAR CART
+---------------------------------*/
 if (isset($_GET['clear'])) {
     unset($_SESSION['cart']);
     header("Location: cart.php");
     exit;
 }
 
-// Update quantity
+/* -------------------------------
+   UPDATE QUANTITY
+---------------------------------*/
 if (isset($_POST['update_qty'])) {
-    foreach ($_POST['qty'] as $id => $q) {
-        $_SESSION['cart'][$id]['quantity'] = max(1, intval($q));
+    foreach ($_POST['qty'] as $pid => $qty) {
+        $qty = intval($qty);
+
+        // Get stock from DB
+        $check = mysqli_fetch_assoc(mysqli_query($conn, "SELECT stock FROM products WHERE product_id=$pid"));
+        $stock = $check['stock'];
+
+        // LIMIT qty to stock
+        if ($qty > $stock) $qty = $stock;
+        if ($qty < 1)     $qty = 1;
+
+        $_SESSION['cart'][$pid]['quantity'] = $qty;
     }
+
     header("Location: cart.php");
     exit;
 }
 
-// Fetch products from DB based on cart IDs
+/* -------------------------------
+   LOAD CART ITEMS
+---------------------------------*/
 $cart_items = [];
 $total = 0;
+
 if (!empty($_SESSION['cart'])) {
-    $ids = implode(',', array_map('intval', array_keys($_SESSION['cart'])));
-    $result = mysqli_query($conn, "SELECT * FROM products WHERE product_id IN ($ids)");
-    while ($row = mysqli_fetch_assoc($result)) {
-        $id = $row['product_id'];
-        $row['quantity'] = $_SESSION['cart'][$id]['quantity'];
-        $row['subtotal'] = $row['price'] * $row['quantity'];
-        $total += $row['subtotal'];
-        $cart_items[] = $row;
+    $ids = implode(",", array_keys($_SESSION['cart']));
+    $sql = "SELECT * FROM products WHERE product_id IN ($ids)";
+    $q = mysqli_query($conn, $sql);
+
+    while ($row = mysqli_fetch_assoc($q)) {
+        $id  = $row['product_id'];
+        $qty = $_SESSION['cart'][$id]['quantity'];
+
+        // stock check
+        $stock = $row['stock'];
+        if ($qty > $stock) {
+            $qty = $stock;
+            $_SESSION['cart'][$id]['quantity'] = $stock;
+        }
+
+        $subtotal = $row['price'] * $qty;
+
+        $cart_items[] = [
+            'id'       => $id,
+            'name'     => $row['product_name'],
+            'price'    => $row['price'],
+            'stock'    => $stock,
+            'qty'      => $qty,
+            'subtotal' => $subtotal
+        ];
+
+        $total += $subtotal;
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Hobbyverse | Your Cart</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-  <style>
-    body {font-family:'Poppins',sans-serif;margin:0;background:#fff7fa;color:#333;}
-    .container {max-width:950px;margin:50px auto;padding:20px;}
-    h1{text-align:center;color:#ff6f91;font-size:36px;margin-bottom:30px;}
-    table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,0.05);border-radius:15px;overflow:hidden;}
-    th,td{text-align:center;padding:15px;font-size:15px;}
-    th{background:#ffe3eb;color:#333;}
-    tr:nth-child(even){background:#fff9fb;}
-    .qty-input{width:60px;text-align:center;padding:5px;border:1px solid #ccc;border-radius:5px;}
-    .btn{padding:10px 20px;border:none;border-radius:25px;cursor:pointer;font-weight:600;transition:.3s;}
-    .btn-update{background:#ff6f91;color:#fff;}
-    .btn-update:hover{background:#ff4d7a;}
-    .btn-remove{background:#ffe3eb;color:#333;}
-    .btn-remove:hover{background:#ffc1cf;}
-    .btn-clear{background:#ccc;color:#333;margin-top:15px;}
-    .btn-checkout{background:#ff6f91;color:#fff;margin-top:25px;}
-    .btn-checkout:hover{background:#ff4d7a;}
-    .total{text-align:right;font-size:20px;font-weight:600;margin-top:20px;color:#222;}
-    .empty{text-align:center;padding:80px;font-size:20px;color:#777;}
-    .actions{text-align:center;margin-top:20px;}
-    @media(max-width:768px){
-      table,th,td{font-size:13px;}
-      .qty-input{width:45px;}
-    }
-  </style>
+<title>Your Cart | Hobbyverse</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Poppins',sans-serif;margin:0;background:#fff7fa;color:#333;}
+.container{max-width:950px;margin:40px auto;padding:20px;}
+h1{text-align:center;color:#ff6f91;font-size:34px;margin-bottom:30px;}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:18px;
+      overflow:hidden;box-shadow:0 10px 22px rgba(0,0,0,.06);}
+th,td{text-align:center;padding:15px;}
+th{background:#ffe3eb;}
+tr:nth-child(even){background:#fff9fb;}
+.qty-input{width:55px;padding:6px;text-align:center;border-radius:6px;border:1px solid #ccc;}
+.small{font-size:12px;color:#e63946;margin-top:4px;}
+.btn{padding:10px 20px;border:none;border-radius:25px;font-weight:600;cursor:pointer;transition:.3s;}
+.btn-update{background:#ff6f91;color:#fff;}
+.btn-update:hover{background:#ff4d7a;}
+.btn-remove{background:#ffe3eb;}
+.btn-remove:hover{background:#ffc1cf;}
+.btn-clear{background:#ccc;}
+.btn-checkout{background:#ff6f91;color:#fff;margin-top:20px;}
+.btn-checkout:hover{background:#ff4d7a;}
+.total{text-align:right;font-size:22px;font-weight:600;margin-top:20px;}
+.empty{text-align:center;font-size:20px;color:#777;margin-top:50px;}
+</style>
 </head>
+
 <body>
+<div class="container">
+<h1>Your Shopping Cart 🛒</h1>
 
-<div class="container" data-aos="fade-up">
-  <h1>Your Shopping Cart 🛒</h1>
-
-  <?php if (empty($cart_items)): ?>
-    <div class="empty" data-aos="fade-in">
-      Your cart is empty 😔<br><br>
-      <a href="products.php" class="btn btn-update">Browse Products</a>
-    </div>
-  <?php else: ?>
-    <form method="POST" action="cart.php">
-      <table data-aos="fade-up">
-        <tr>
-          <th>Product</th>
-          <th>Price</th>
-          <th>Quantity</th>
-          <th>Subtotal</th>
-          <th>Action</th>
-        </tr>
-        <?php foreach ($cart_items as $item): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($item['product_name']); ?></td>
-            <td>₹<?php echo number_format($item['price'],2); ?></td>
-            <td>
-              <input type="number" class="qty-input" name="qty[<?php echo $item['product_id']; ?>]" 
-                     value="<?php echo $item['quantity']; ?>" min="1">
-            </td>
-            <td>₹<?php echo number_format($item['subtotal'],2); ?></td>
-            <td>
-              <a href="?remove=<?php echo $item['product_id']; ?>" class="btn btn-remove">Remove</a>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-      </table>
-      <div class="actions">
-        <button type="submit" name="update_qty" class="btn btn-update">Update Quantities</button>
-        <a href="?clear=1" class="btn btn-clear">Clear Cart</a>
-      </div>
-    </form>
-
-    <div class="total" data-aos="fade-right">
-      Total: ₹<?php echo number_format($total,2); ?>
+<?php if (empty($cart_items)): ?>
+    <div class="empty">
+        Your cart is empty 😔<br><br>
+        <a href="products.php" class="btn btn-update">Browse Products</a>
     </div>
 
-    <div class="actions" data-aos="zoom-in">
-      <button class="btn btn-checkout" onclick="checkout()">Proceed to Checkout →</button>
-    </div>
-  <?php endif; ?>
+<?php else: ?>
+<form method="POST">
+<table>
+    <tr>
+        <th>Product</th>
+        <th>Qty</th>
+        <th>Price</th>
+        <th>Subtotal</th>
+        <th>Action</th>
+    </tr>
+
+    <?php foreach ($cart_items as $item): ?>
+    <tr>
+
+        <td><?= htmlspecialchars($item['name']) ?></td>
+
+        <td>
+            <input type="number"
+                   min="1"
+                   max="<?= $item['stock'] ?>"
+                   class="qty-input"
+                   name="qty[<?= $item['id'] ?>]"
+                   value="<?= $item['qty'] ?>">
+
+            <div class="small">
+                <?= $item['stock'] ?> left
+            </div>
+        </td>
+
+        <td>₹<?= number_format($item['price']) ?></td>
+        <td>₹<?= number_format($item['subtotal']) ?></td>
+
+        <td>
+            <a class="btn btn-remove"
+               href="cart.php?remove=<?= $item['id'] ?>">Remove</a>
+        </td>
+    </tr>
+    <?php endforeach; ?>
+</table>
+
+<div style="margin-top:20px;">
+    <button type="submit" name="update_qty" class="btn btn-update">Update Quantities</button>
+    <a class="btn btn-clear" href="cart.php?clear=1">Clear Cart</a>
+</div>
+</form>
+
+<div class="total">Total: ₹<?= number_format($total) ?></div>
+
+<button onclick="location.href='checkout.php'" class="btn btn-checkout">
+    Proceed to Checkout →
+</button>
+
+<?php endif; ?>
 </div>
 
-<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-<script>AOS.init({duration:800,once:true});</script>
-
-<script>
-function checkout(){
-  <?php if (!isset($_SESSION['user_id'])): ?>
-    window.location.href = "login.php?redirect=checkout.php";
-  <?php else: ?>
-    window.location.href = "checkout.php";
-  <?php endif; ?>
-}
-</script>
-
+<?php include 'footer.php'; ?>
 </body>
 </html>
-<?php include 'footer.php'; ?>
