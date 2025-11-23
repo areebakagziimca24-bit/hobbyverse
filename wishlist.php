@@ -19,11 +19,6 @@ $query = "
 
 $items = mysqli_query($conn, $query);
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-<title>My Wishlist - Hobbyverse</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
 body{font-family:'Poppins',sans-serif;background:#fff8fa;margin:0;}
@@ -42,12 +37,12 @@ h1{text-align:center;color:#ff4c8b;margin-bottom:25px;}
 
 .card{
   background:#fff;border-radius:18px;overflow:hidden;
-  box-shadow:0 6px 20px rgba(0,0,0,0.08);transition:.3s;
+  box-shadow:0 6px 20px rgba(0,0,0,0.08);
+  transition:.4s;
 }
+.card:hover{transform:translateY(-10px);}
 
-.card:hover{transform:translateY(-8px);}
-
-.card img{width:100%;height:180px;object-fit:cover;}
+.card img{width:100%;height:200px;object-fit:cover;}
 
 .card-body{padding:15px;}
 
@@ -56,11 +51,14 @@ h1{text-align:center;color:#ff4c8b;margin-bottom:25px;}
 .btn{
   display:inline-block;padding:8px 14px;background:#ff4c8b;color:#fff;
   border-radius:20px;text-decoration:none;font-size:14px;font-weight:600;
+  transition:.2s;
 }
+.btn:hover{background:#ff3a79;}
 
 .remove{
   background:#ffd1dc;color:#333;margin-left:10px;
 }
+.remove:hover{background:#ffb8c7;}
 
 .stock{font-weight:600;font-size:14px;margin-bottom:5px;}
 .in-stock{color:#28a745;}
@@ -69,15 +67,12 @@ h1{text-align:center;color:#ff4c8b;margin-bottom:25px;}
 
 .empty{text-align:center;font-size:18px;color:#777;padding:40px;}
 </style>
-</head>
 
-<body>
-
-<div class="container">
+<div class="container" data-aos="fade-up">
   <h1>❤️ My Wishlist</h1>
 
   <?php if(mysqli_num_rows($items)==0): ?>
-    <div class="empty">
+    <div class="empty" data-aos="fade-up" data-aos-delay="150">
       Your wishlist is empty 😢<br><br>
       <a href="products.php" class="btn">Explore Products</a>
     </div>
@@ -85,24 +80,32 @@ h1{text-align:center;color:#ff4c8b;margin-bottom:25px;}
 
     <div class="grid">
 
-      <?php while($p = mysqli_fetch_assoc($items)): ?>
+      <?php 
+      $delay = 0;
+      while($p = mysqli_fetch_assoc($items)): 
+        $delay += 120;
 
-        <?php
         $stock = $p['stock'];
         if ($stock == 0)      { $sclass = "out-stock"; $slabel="✖ Out of Stock"; }
         elseif ($stock <=10)  { $sclass = "low-stock"; $slabel="⚠ Low Stock"; }
         else                  { $sclass = "in-stock"; $slabel="✔ In Stock"; }
-        ?>
+      ?>
 
-        <div class="card">
-          <img src="<?php echo $p['image']; ?>">
+        <div class="card" data-aos="zoom-in" data-aos-delay="<?= $delay ?>">
+          <img src="<?= $p['image']; ?>">
           <div class="card-body">
-            <h3><?php echo $p['product_name']; ?></h3>
-            <div class="stock <?php echo $sclass; ?>"><?php echo $slabel; ?></div>
-            <div class="price">₹<?php echo $p['price']; ?></div>
+            <h3><?= $p['product_name']; ?></h3>
 
-            <a href="cart.php?add=<?php echo $p['product_id']; ?>" class="btn">Add to Cart</a>
-            <a href="wishlist_action.php?id=<?php echo $p['product_id']; ?>" class="btn remove">Remove</a>
+            <div class="stock <?= $sclass; ?>"><?= $slabel; ?></div>
+            <div class="price">₹<?= $p['price']; ?></div>
+
+            <?php if($stock > 0): ?>
+              <a href="cart.php?add=<?= $p['product_id']; ?>" class="btn">Add to Cart</a>
+            <?php else: ?>
+              <span class="btn" style="background:#ccc;cursor:not-allowed;">Unavailable</span>
+            <?php endif; ?>
+
+            <a href="wishlist_action.php?id=<?= $p['product_id']; ?>" class="btn remove">Remove</a>
           </div>
         </div>
 
@@ -113,8 +116,5 @@ h1{text-align:center;color:#ff4c8b;margin-bottom:25px;}
   <?php endif; ?>
 
 </div>
-
-</body>
-</html>
 
 <?php include 'footer.php'; ?>
