@@ -2,7 +2,7 @@
 include 'db_connect.php';
 include 'header.php';
 
-$q = mysqli_real_escape_string($conn, $_GET['q'] ?? '');
+$q = mysqli_real_escape_string($conn, $_GET['search'] ?? ($_GET['q'] ?? ''));
 
 if ($q == "") {
     $hobby_results = [];
@@ -212,3 +212,4 @@ h1{
 </html>
 
 <?php include 'footer.php'; ?>
+
