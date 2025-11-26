@@ -133,7 +133,7 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
         <div class="logo" onclick="location.href='index.php'">Hobbyverse</div>
 
         <!-- SEARCH -->
-        <form class="search-bar" method="GET" action="index.php">
+        <form class="search-bar" method="GET" action="search.php">
             <input type="search" name="search" placeholder="Search hobbies...">
             <button type="submit">Go</button>
         </form>
@@ -190,3 +190,4 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 
     </div>
 </div>
+
