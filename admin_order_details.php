@@ -1,238 +1,159 @@
 <?php
 session_start();
-include "db_connect.php";
+include 'db_connect.php';
+include 'header.php';
 
-// ---------------- ADMIN CHECK ----------------
-if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
-    header("Location: admin_login.php");
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
     exit;
 }
 
-$order_id = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
-if ($order_id <= 0) {
-    die("Invalid order ID.");
-}
+$order_id = intval($_GET['order_id']);
+$uid = intval($_SESSION['user_id']);
 
-// Fetch order + user
-$order_q = "
-    SELECT o.*, u.username
-    FROM orders o
-    LEFT JOIN users u ON o.user_id = u.user_id
-    WHERE o.order_id = $order_id
-";
-$order_res = mysqli_query($conn, $order_q);
-$order = mysqli_fetch_assoc($order_res);
+$order = mysqli_fetch_assoc(
+    mysqli_query($conn, "SELECT * FROM orders WHERE order_id=$order_id AND user_id=$uid")
+);
 
 if (!$order) {
-    die("Order not found.");
+    echo "<h2 style='text-align:center;margin-top:50px;color:#ff4c8b;'>Order not found!</h2>";
+    include 'footer.php';
+    exit;
 }
 
-// Fetch items
-$items_q = "
+$items = mysqli_query($conn, "
     SELECT oi.*, p.product_name, p.image
     FROM order_items oi
-    JOIN products p ON oi.product_id = p.product_id
-    WHERE oi.order_id = $order_id
-";
-$items_res = mysqli_query($conn, $items_q);
-
+    JOIN products p ON p.product_id = oi.product_id
+    WHERE order_id=$order_id
+");
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-<title>Order #<?= $order_id ?> Details - Hobbyverse Admin</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-
 <style>
-body{
-    font-family:'Poppins',sans-serif;
-    background:#fff7fa;
-    overflow-x:hidden;
+body {
+    background: #fff2fa;
+    font-family: 'Poppins', sans-serif;
 }
-.sidebar{
-    width:230px;
-    height:100vh;
-    position:fixed;
-    left:0;top:0;
-    background:#ff4c8b;
-    color:white;
-    padding:20px 15px;
+
+/* CARD */
+.order-wrapper {
+    max-width: 920px;
+    margin: 40px auto;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 35px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
 }
-.sidebar h2{
-    font-size:20px;
-    font-weight:600;
-    margin-bottom:20px;
+
+/* HEADER */
+.order-title {
+    font-size: 26px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg,#ff3f89,#ff74b2);
+    -webkit-background-clip: text;
+    color: transparent;
 }
-.sidebar a{
-    display:block;
-    padding:10px 12px;
-    margin-bottom:8px;
-    color:white;
-    text-decoration:none;
-    border-radius:8px;
-    font-size:14px;
+
+/* SUB DETAILS */
+.order-info {
+    text-align: center;
+    font-size: 14px;
+    margin-bottom: 25px;
+    color: #444;
 }
-.sidebar a:hover{
-    background:#ff6ea4;
+
+/* TABLE */
+.order-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 18px;
 }
-.sidebar a.active{
-    background:#ff6ea4;
+.order-table th {
+    background: #ffe3f0;
+    color: #ff2e78;
+    padding: 12px;
+    font-size: 15px;
 }
-.content{
-    margin-left:250px;
-    padding:30px;
+.order-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f6d6e6;
+    font-size: 14px;
 }
-.page-title{
-    font-weight:600;
-    color:#ff4c8b;
+.order-table img {
+    width: 60px;
+    border-radius: 10px;
 }
-.badge-status{
-    padding:4px 9px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:600;
+
+/* TOTAL */
+.total-box {
+    margin-top: 18px;
+    text-align: right;
+    font-size: 20px;
+    font-weight: 600;
+    color: #ff2e78;
 }
-.badge-pending{background:#fff0c2;color:#b08500;}
-.badge-processing{background:#d9ecff;color:#0f53a3;}
-.badge-shipped{background:#d7f6ff;color:#00718f;}
-.badge-delivered{background:#d5ffd6;color:#15803d;}
-.badge-cancelled{background:#ffd5d5;color:#b42318;}
-.table img{
-    width:50px;height:50px;border-radius:6px;object-fit:cover;
+
+/* BUTTONS */
+.btn-area {
+    text-align: center;
+    margin-top: 35px;
+    display: flex;
+    justify-content: center;
+    gap: 18px;
 }
-.info-box{
-    background:#fff;
-    border-radius:14px;
-    padding:18px 18px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.06);
-    margin-bottom:20px;
+.btn-order, .btn-home {
+    background: #ff4c8b;
+    color: white;
+    padding: 12px 28px;
+    border-radius: 30px;
+    font-size: 15px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: .25s;
 }
-.info-title{
-    font-weight:600;
-    color:#ff4c8b;
-    margin-bottom:8px;
+.btn-order:hover, .btn-home:hover {
+    opacity: 0.85;
 }
 </style>
-</head>
 
-<body>
+<div class="order-wrapper">
+    <div class="order-title">🧾 Order Summary</div>
 
-<!-- SIDEBAR -->
-<div class="sidebar">
-    <h2>Hobbyverse Admin</h2>
-    <a href="admin.php"><i class="fa fa-home"></i> Dashboard</a>
-    <a href="admin_products.php"><i class="fa fa-box"></i> Products</a>
-    <a href="admin_orders.php" class="active"><i class="fa fa-shopping-cart"></i> Orders</a>
-    <a href="admin_users.php"><i class="fa fa-users"></i> Users</a>
-    <a href="admin_hobbies.php"><i class="fa fa-heart"></i> Hobbies</a>
-    <hr style="border-color:#ffcadd;">
-    <a href="logout.php"><i class="fa fa-sign-out-alt"></i> Logout</a>
-    <a href="index.php" style="background:#ffb6c9;margin-top:10px;">
-        <i class="fa fa-door-open"></i> Exit Dashboard
-    </a>
+    <div class="order-info">
+        <b>Order ID:</b> #<?= $order_id ?><br>
+        <b>Date:</b> <?= date("d M Y", strtotime($order['created_at'])) ?><br>
+        <b>Status:</b> <?= ucfirst($order['status']) ?>
+    </div>
+
+    <table class="order-table">
+        <tr>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Subtotal</th>
+        </tr>
+        <?php while ($i = mysqli_fetch_assoc($items)) : ?>
+        <tr>
+            <td>
+                <img src="<?= $i['image'] ?>"> 
+                <?= $i['product_name'] ?>
+            </td>
+            <td><?= $i['quantity'] ?></td>
+            <td>₹<?= number_format($i['price'], 2) ?></td>
+            <td>₹<?= number_format($i['subtotal'], 2) ?></td>
+        </tr>
+        <?php endwhile; ?>
+    </table>
+
+    <div class="total-box">
+        Total Amount: ₹<?= number_format($order['total_amount'], 2) ?>
+    </div>
+
+    <div class="btn-area">
+        <a href="invoice.php?order_id=<?= $order_id ?>" class="btn-order">🔻 Download Invoice</a>
+        <a href="index.php" class="btn-home">🏠 Back to Home</a>
+    </div>
 </div>
 
-<!-- MAIN CONTENT -->
-<div class="content">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h2 class="page-title">Order #<?= $order_id ?> Details</h2>
-            <p class="text-muted mb-0">
-                Placed on <?= htmlspecialchars($order['created_at'] ?? '') ?>
-            </p>
-        </div>
-
-        <a href="admin_orders.php" class="btn btn-outline-secondary">
-            ← Back to Orders
-        </a>
-    </div>
-
-    <?php
-        $status = strtolower($order['status'] ?? 'pending');
-        $badgeClass = 'badge-pending';
-        if ($status === 'processing') $badgeClass = 'badge-processing';
-        elseif ($status === 'shipped') $badgeClass = 'badge-shipped';
-        elseif ($status === 'delivered') $badgeClass = 'badge-delivered';
-        elseif ($status === 'cancelled') $badgeClass = 'badge-cancelled';
-    ?>
-
-    <!-- ORDER SUMMARY -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="info-box">
-                <div class="info-title">Order Summary</div>
-                <p class="mb-1"><strong>Order ID:</strong> #<?= $order_id ?></p>
-                <p class="mb-1"><strong>User:</strong> <?= htmlspecialchars($order['username'] ?? 'Guest') ?></p>
-                <p class="mb-1"><strong>Total Amount:</strong> ₹<?= number_format($order['total_amount'],2) ?></p>
-                <p class="mb-1"><strong>Payment:</strong> <?= htmlspecialchars($order['payment_method'] ?? 'COD') ?></p>
-                <p class="mb-0">
-                    <strong>Status:</strong>
-                    <span class="badge-status <?= $badgeClass ?>"><?= ucfirst($status) ?></span>
-                </p>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="info-box">
-                <div class="info-title">Customer & Address</div>
-                <p class="mb-1"><strong>Name:</strong> <?= htmlspecialchars($order['customer_name'] ?? '') ?></p>
-                <p class="mb-1"><strong>Email:</strong> <?= htmlspecialchars($order['email'] ?? '') ?></p>
-                <p class="mb-1"><strong>Phone:</strong> <?= htmlspecialchars($order['phone'] ?? '') ?></p>
-                <p class="mb-1"><strong>City:</strong> <?= htmlspecialchars($order['city'] ?? '') ?></p>
-                <p class="mb-0"><strong>Address:</strong><br><?= nl2br(htmlspecialchars($order['address'] ?? '')) ?></p>
-            </div>
-        </div>
-    </div>
-
-    <!-- ORDER ITEMS -->
-    <div class="card shadow-sm mt-3">
-        <div class="card-body">
-            <h5 class="card-title mb-3">Items in this Order</h5>
-            <div class="table-responsive">
-                <table class="table align-middle">
-                    <thead>
-                        <tr>
-                            <th>Product</th>
-                            <th>Price</th>
-                            <th>Qty</th>
-                            <th>Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php
-                        $grand_total = 0;
-                        while($it = mysqli_fetch_assoc($items_res)):
-                            $grand_total += (float)$it['subtotal'];
-                    ?>
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <?php if (!empty($it['image'])): ?>
-                                        <img src="<?= htmlspecialchars($it['image']) ?>" alt="">
-                                    <?php endif; ?>
-                                    <span><?= htmlspecialchars($it['product_name']) ?></span>
-                                </div>
-                            </td>
-                            <td>₹<?= number_format($it['price'],2) ?></td>
-                            <td><?= (int)$it['quantity'] ?></td>
-                            <td>₹<?= number_format($it['subtotal'],2) ?></td>
-                        </tr>
-                    <?php endwhile; ?>
-                        <tr>
-                            <td colspan="3" class="text-end"><strong>Grand Total:</strong></td>
-                            <td><strong>₹<?= number_format($grand_total,2) ?></strong></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-</body>
-</html>
+<?php include 'footer.php'; ?>

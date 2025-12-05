@@ -35,9 +35,7 @@ $address = mysqli_real_escape_string($conn, trim($_POST['address'] ?? ''));
     if ($name === "") {
         $error = "Username cannot be empty.";
     }
-    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $error = "Invalid email format.";
-}
+  
 
     elseif ($phone !== "" && !preg_match('/^[0-9]{10}$/', $phone)) {
         $error = "Phone number must be 10 digits.";
@@ -48,7 +46,6 @@ $address = mysqli_real_escape_string($conn, trim($_POST['address'] ?? ''));
         $sql = "
           UPDATE users SET 
     username = '$name',
-    email    = '$email',   /* <-- ADD THIS */
     phone    = '$phone',
     city     = '$city',
     address  = '$address'
